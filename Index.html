@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paralleliom Browser </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0D1117; /* Darker than Gray 900 */
+            --bg-secondary: #161B22; /* Gray 900 */
+            --surface-color: #30363D; /* Gray 700 */
+            --accent-color: #58A6FF; /* Blue 400 */
+            --text-primary: #C9D1D9; /* Gray 200 */
+            --text-secondary: #8B949E; /* Gray 400 */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            background-image: 
+                linear-gradient(rgba(13, 17, 23, 0.95), rgba(13, 17, 23, 0.95)),
+                repeating-linear-gradient(0deg, var(--surface-color), var(--surface-color) 1px, transparent 1px, transparent 40px),
+                repeating-linear-gradient(90deg, var(--surface-color), var(--surface-color) 1px, transparent 1px, transparent 40px);
+            animation: background-pan 120s linear infinite;
+        }
+        @keyframes background-pan {
+            from { background-position: 0 0; }
+            to { background-position: 1200px 1200px; }
+        }
+        
+        .browser-slider { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .browser-slider::-webkit-scrollbar { display: none; }
+        .browser-slider { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .browser-window {
+            scroll-snap-align: center;
+            flex-shrink: 0;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--surface-color);
+        }
+
+        .address-bar-wrapper {
+            display: flex;
+            align-items: center;
+            background-color: #010409;
+            border-radius: 0.375rem; /* 6px */
+            border: 1px solid var(--surface-color);
+            transition: box-shadow 0.2s;
+        }
+        .address-bar-wrapper:focus-within {
+            box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-color);
+        }
+        .address-bar {
+            background: transparent;
+            border: none;
+            outline: none;
+            flex-grow: 1;
+            padding: 0.5rem 0.75rem; /* 8px 12px */
+        }
+        .search-btn {
+            background: var(--surface-color);
+            border: none;
+            padding: 0.5rem;
+            border-right: 1px solid var(--surface-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .search-btn:hover { background-color: #484F58; }
+        
+        iframe { width: 100%; height: 100%; border: none; background-color: #ffffff; transition: opacity 0.3s ease-in-out; }
+
+        /* Network Status Indicator */
+        .status-indicator { display: flex; align-items: flex-end; gap: 2px; height: 16px; width: 24px; }
+        .status-indicator .bar { width: 4px; background-color: var(--accent-color); opacity: 0.3; transition: all 0.3s ease-in-out; }
+        .status-indicator.idle .bar:nth-child(1) { animation: idle-pulse 1.5s infinite ease-in-out 0s; }
+        .status-indicator.idle .bar:nth-child(2) { animation: idle-pulse 1.5s infinite ease-in-out 0.2s; }
+        .status-indicator.idle .bar:nth-child(3) { animation: idle-pulse 1.5s infinite ease-in-out 0.4s; }
+        @keyframes idle-pulse { 0%, 100% { height: 20%; opacity: 0.3; } 50% { height: 100%; opacity: 1; } }
+        .status-indicator.loading .bar { opacity: 1; }
+        .status-indicator.loading .bar:nth-child(1) { animation: loading-wave 0.8s infinite ease-in-out 0s; }
+        .status-indicator.loading .bar:nth-child(2) { animation: loading-wave 0.8s infinite ease-in-out 0.1s; }
+        .status-indicator.loading .bar:nth-child(3) { animation: loading-wave 0.8s infinite ease-in-out 0.2s; }
+        @keyframes loading-wave { 0%, 100% { height: 20%; } 50% { height: 100%; } }
+
+        /* Professional Button Group */
+        .button-group { display: flex; background-color: var(--bg-secondary); border-radius: 0.5rem; border: 1px solid var(--surface-color); overflow: hidden; }
+        .mode-button { padding: 0.5rem 1.5rem; font-weight: 500; font-size: 0.875rem; color: var(--text-secondary); background-color: transparent; border: none; cursor: pointer; transition: all 0.2s ease-in-out; border-left: 1px solid var(--surface-color); }
+        .mode-button:last-child { border-left: none; }
+        .mode-button.active { background-color: var(--accent-color); color: var(--bg-primary); box-shadow: 0 0 10px rgba(88, 166, 255, 0.5); }
+        .mode-button:not(.active):hover { background-color: var(--surface-color); color: var(--text-primary); }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <main class="flex-grow flex overflow-x-auto browser-slider" id="browserContainer">
+        <!-- Browser windows will be dynamically created here -->
+    </main>
+
+    <footer class="p-4 flex justify-center items-center shrink-0 border-t border-gray-700 bg-gray-900/80 backdrop-blur-sm">
+        <div class="button-group">
+            <button id="soloBtn" class="mode-button active"> Solo </button>
+            <button id="parallelBtn" class="mode-button">Parallel</button>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const BACKEND_URL = "https://parallel-browser-backend.onrender.com"; // ## آدرس بک‌اند را اینجا قرار دهید ##
+
+            let currentMode = 'solo';
+            const browserContainer = document.getElementById('browserContainer');
+            const BROWSER_COUNT = 4;
+
+            function createBrowserWindows() {
+                for (let i = 1; i <= BROWSER_COUNT; i++) {
+                    const windowEl = document.createElement('div');
+                    windowEl.className = 'browser-window w-full h-full flex flex-col rounded-lg';
+                    windowEl.innerHTML = `
+                        <div class="flex items-center gap-3 p-3 border-b border-gray-700 shrink-0">
+                            <div class="status-indicator idle">
+                                <div class="bar"></div> <div class="bar"></div> <div class="bar"></div>
+                            </div>
+                            <div class="address-bar-wrapper flex-grow">
+                                <input type="text" class="address-bar text-sm text-gray-50" placeholder="https://Example☬SHΞN™.com">
+                                <button class="search-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-grow bg-gray-900 overflow-hidden">
+                            <iframe class="browser-iframe" src="about:blank" title="Browser Window ${i}"></iframe>
+                        </div>`;
+                    browserContainer.appendChild(windowEl);
+                }
+            }
+
+            function triggerLoad(browserWindow) {
+                const addressBar = browserWindow.querySelector('.address-bar');
+                const iframe = browserWindow.querySelector('.browser-iframe');
+                const url = addressBar.value;
+                loadUrlInFrame(iframe, url);
+            }
+
+            function loadUrlInFrame(iframe, url) {
+                if (!url) return;
+                if (!url.startsWith('http')) url = 'https://' + url;
+                
+                const statusIndicator = iframe.closest('.browser-window').querySelector('.status-indicator');
+                
+                statusIndicator.classList.replace('idle', 'loading');
+                iframe.style.opacity = '0.5';
+
+                iframe.onload = () => {
+                    statusIndicator.classList.replace('loading', 'idle');
+                    iframe.style.opacity = '1';
+                };
+                iframe.onerror = () => {
+                    statusIndicator.classList.replace('loading', 'idle');
+                    iframe.style.opacity = '1';
+                    iframe.contentWindow.document.body.innerHTML = `<div style="display:flex;justify-content:center;align-items:center;height:100%;font-family:sans-serif;color:#f00;background-color:#fff;">خطا در بارگذاری</div>`;
+                };
+                
+                iframe.src = `${BACKEND_URL}/proxy?url=${encodeURIComponent(url)}`;
+            }
+
+            function initializeEventListeners() {
+                const soloBtn = document.getElementById('soloBtn');
+                const parallelBtn = document.getElementById('parallelBtn');
+
+                browserContainer.addEventListener('click', (e) => {
+                    if (e.target.closest('.search-btn')) {
+                        const browserWindow = e.target.closest('.browser-window');
+                        if (currentMode === 'parallel') {
+                            const url = browserWindow.querySelector('.address-bar').value;
+                            document.querySelectorAll('.address-bar').forEach(bar => bar.value = url);
+                            document.querySelectorAll('.browser-window').forEach(win => triggerLoad(win));
+                        } else {
+                           triggerLoad(browserWindow);
+                        }
+                    }
+                });
+                
+                browserContainer.addEventListener('keypress', (e) => {
+                    if (e.target.classList.contains('address-bar') && e.key === 'Enter') {
+                       const browserWindow = e.target.closest('.browser-window');
+                       if (currentMode === 'parallel') {
+                           const url = browserWindow.querySelector('.address-bar').value;
+                           document.querySelectorAll('.address-bar').forEach(bar => bar.value = url);
+                           document.querySelectorAll('.browser-window').forEach(win => triggerLoad(win));
+                       } else {
+                           triggerLoad(browserWindow);
+                       }
+                    }
+                });
+
+                soloBtn.addEventListener('click', () => {
+                    currentMode = 'solo';
+                    soloBtn.classList.add('active');
+                    parallelBtn.classList.remove('active');
+                });
+
+                parallelBtn.addEventListener('click', () => {
+                    currentMode = 'parallel';
+                    parallelBtn.classList.add('active');
+                    soloBtn.classList.remove('active');
+                });
+            }
+
+            createBrowserWindows();
+            initializeEventListeners();
+        });
+    </script>
+</body>
+      </html>
+      
